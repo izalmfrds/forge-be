@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 import { artifactKinds, generateArtifacts, type ArtifactKind } from "./artifacts.js";
+import { verifyArtifact } from "./verification.js";
 
 export async function generateProjectArtifacts(projectId: string, requestedKinds?: ArtifactKind[]) {
   const project = await prisma.project.findFirst({
@@ -22,14 +23,17 @@ export async function generateProjectArtifacts(projectId: string, requestedKinds
     ac: asStrings(requirement.ac),
     rules: asStrings(requirement.rules),
   }, project.kanbanCards);
-  const selected = requestedKinds ? generated.filter((artifact) => requestedKinds.includes(artifact.kind)) : generated;
+  const selected = (requestedKinds ? generated.filter((artifact) => requestedKinds.includes(artifact.kind)) : generated).map((artifact) => {
+    const quality = verifyArtifact(artifact.kind, artifact.content);
+    return { ...artifact, content: { ...artifact.content, quality }, verified: quality.status === "passed" };
+  });
   const artifacts = await prisma.$transaction(selected.map((artifact) => prisma.canvasArtifact.upsert({
     where: { projectId_kind: { projectId: project.id, kind: artifact.kind } },
-    create: { projectId: project.id, kind: artifact.kind, requirementVersion: requirement.version, content: artifact.content as unknown as Prisma.InputJsonValue },
-    update: { requirementVersion: requirement.version, status: "synced", content: artifact.content as unknown as Prisma.InputJsonValue },
+    create: { projectId: project.id, kind: artifact.kind, requirementVersion: requirement.version, status: artifact.verified ? "verified" : "failed", content: artifact.content as unknown as Prisma.InputJsonValue },
+    update: { requirementVersion: requirement.version, status: artifact.verified ? "verified" : "failed", content: artifact.content as unknown as Prisma.InputJsonValue },
   })));
   await prisma.project.update({ where: { id: project.id }, data: { stage: Math.max(project.stage, 2), prog: Math.max(project.prog, 50) } });
-  return { project, requirement, artifacts, kinds: selected.map((artifact) => artifact.kind) };
+  return { project, requirement, artifacts, kinds: selected.map((artifact) => artifact.kind), verificationPassed: selected.every((artifact) => artifact.verified) };
 }
 
 export async function completeCanvasTasks(projectId: string, kinds: ArtifactKind[]) {

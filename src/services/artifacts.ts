@@ -10,9 +10,15 @@ export type ArtifactContent = {
   sections: { title: string; items: string[] }[];
   tasks: { id: string; title: string; status: string; reqRef: string | null }[];
   files: ArtifactFile[];
+  quality?: QualityReport;
 };
 
 export type ArtifactFile = { path: string; language: string; content: string };
+export type QualityReport = {
+  status: "passed" | "failed";
+  checkedAt: string;
+  checks: { key: string; label: string; passed: boolean; detail: string }[];
+};
 
 export function generateArtifacts(project: { name: string; desc: string }, requirement: RequirementData, cards: ArtifactTask[]) {
   const taskMap = new Map(artifactKinds.map((kind) => [kind, cards.filter((card) => card.canvas === kind && !card.title.toLowerCase().includes("obsolete"))]));
