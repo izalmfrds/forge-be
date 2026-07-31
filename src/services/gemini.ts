@@ -2,9 +2,8 @@ import { z } from "zod";
 import { AppError } from "../lib/errors.js";
 import type { RequirementData } from "./requirements.js";
 
-const DEFAULT_MODEL = "gemini-2.5-flash-lite";
+const DEFAULT_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_ALLOWED_MODELS = [
-  "gemini-2.5-flash-lite",
   "gemini-3.1-flash-lite",
   "gemini-3.5-flash-lite",
   "gemini-3.5-flash",
