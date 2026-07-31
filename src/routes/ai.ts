@@ -30,6 +30,35 @@ const chatSchema = z.object({
   attachments: z.record(z.number().int().min(0).max(20)).optional(),
 });
 
+router.get("/chat/:projectId", asyncHandler(async (req, res) => {
+  const query = z.object({
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+    cursor: z.string().min(1).optional(),
+  }).parse(req.query);
+  await assertProjectAccess(req.params.projectId, req.auth!.userId);
+
+  const messages = await prisma.chatMessage.findMany({
+    where: { projectId: req.params.projectId },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: query.limit + 1,
+    ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+    select: { id: true, role: true, text: true, model: true, createdAt: true },
+  });
+  const hasMore = messages.length > query.limit;
+  const page = messages.slice(0, query.limit);
+
+  return res.json({
+    items: page.reverse().map((message) => ({
+      id: message.id,
+      role: message.role,
+      text: message.text,
+      model: message.model,
+      at: message.createdAt.getTime(),
+    })),
+    nextCursor: hasMore ? page[page.length - 1]?.id || null : null,
+  });
+}));
+
 router.post("/chat", asyncHandler(async (req, res) => {
   const input = chatSchema.parse(req.body);
   await assertProjectAccess(input.projectId, req.auth!.userId, ["owner", "editor"]);
