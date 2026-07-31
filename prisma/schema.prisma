@@ -19,6 +19,22 @@ model User {
   updatedAt DateTime @updatedAt
 }
 
+model CanvasArtifact {
+  id                 String   @id @default(cuid())
+  projectId          String
+  kind               String
+  requirementVersion Int
+  status             String   @default("synced")
+  content            Json
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, kind])
+  @@index([projectId])
+}
+
 model Project {
   id              String   @id @default(cuid())
   name            String
@@ -42,6 +58,7 @@ model Project {
   screens   Screen[]
   kanbanCards KanbanCard[]
   chatMessages ChatMessage[]
+  artifacts CanvasArtifact[]
 
   @@index([createdBy])
   @@index([deletedAt])
