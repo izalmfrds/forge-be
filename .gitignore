@@ -7,3 +7,6 @@ coverage
 .next
 .turbo
 .DS_Store
+.vercel
+.env*
+!.env.example
