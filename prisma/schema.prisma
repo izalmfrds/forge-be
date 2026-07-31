@@ -59,9 +59,29 @@ model Project {
   kanbanCards KanbanCard[]
   chatMessages ChatMessage[]
   artifacts CanvasArtifact[]
+  orchestrationRuns OrchestrationRun[]
 
   @@index([createdBy])
   @@index([deletedAt])
+}
+
+model OrchestrationRun {
+  id                 String    @id @default(cuid())
+  projectId          String
+  requirementVersion Int
+  status             String    @default("running")
+  trigger            String    @default("automatic")
+  steps              Json      @default("[]")
+  error              String?
+  startedAt          DateTime  @default(now())
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([projectId, requirementVersion])
 }
 
 model ProjectMember {

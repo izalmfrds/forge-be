@@ -10,6 +10,7 @@ import aiRouter from "./routes/ai.js";
 import searchRouter from "./routes/search.js";
 import exportRouter from "./routes/export.js";
 import artifactsRouter from "./routes/artifacts.js";
+import orchestrationRouter from "./routes/orchestration.js";
 import { authRequired } from "./lib/auth.js";
 import { errorHandler, notFoundHandler } from "./lib/errors.js";
 
@@ -54,6 +55,7 @@ app.use("/api/projects", projectKanbanRouter);
 app.use("/api/projects", projectScreensRouter);
 app.use("/api/projects", exportRouter);
 app.use("/api/projects", artifactsRouter);
+app.use("/api/projects", orchestrationRouter);
 app.use("/api/kanban/cards", cardRouter);
 app.use("/api/screens", screenRouter);
 app.use("/api/ai", aiRouter);

@@ -18,6 +18,7 @@ router.get("/:id/export", asyncHandler(async (req, res) => {
       kanbanCards: { orderBy: [{ status: "asc" }, { order: "asc" }] },
       screens: { orderBy: { createdAt: "asc" }, include: { history: { orderBy: { createdAt: "asc" } } } },
       artifacts: { orderBy: { kind: "asc" } },
+      orchestrationRuns: { orderBy: { createdAt: "asc" } },
     },
   });
   if (!project) throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
