@@ -22,7 +22,7 @@ projectScreensRouter.get("/:id/screens", asyncHandler(async (req, res) => {
   const screens = await prisma.screen.findMany({
     where: { projectId: req.params.id },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, name: true, w: true, h: true, settings: true, createdAt: true, updatedAt: true },
+    select: { id: true, name: true, w: true, h: true, settings: true, revision: true, createdAt: true, updatedAt: true },
   });
   return res.json(screens);
 }));
@@ -78,9 +78,73 @@ screenRouter.delete("/:id", asyncHandler(async (req, res) => {
 screenRouter.get("/:id/nodes", asyncHandler(async (req, res) => {
   const screen = await prisma.screen.findUnique({
     where: { id: req.params.id },
-    select: { id: true, nodes: true, guides: true, settings: true, updatedAt: true },
+    select: { id: true, nodes: true, guides: true, settings: true, revision: true, updatedAt: true },
   });
   return res.json(screen);
+}));
+
+screenRouter.put("/:id/document", asyncHandler(async (req, res) => {
+  const input = z.object({
+    revision: z.number().int().min(1),
+    name: z.string().trim().min(1).max(120),
+    w: z.number().int().min(1).max(20000),
+    h: z.number().int().min(1).max(20000),
+    nodes: z.array(z.record(z.unknown())),
+    guides: z.array(z.object({
+      id: z.string(),
+      orientation: z.enum(["horizontal", "vertical"]),
+      position: z.number(),
+      locked: z.boolean().optional(),
+    })),
+    settings: z.record(z.unknown()),
+    history: z.object({
+      action: z.string().min(1).max(80),
+      payload: z.unknown(),
+      inverse: z.unknown(),
+      affectedIds: z.array(z.string()).default([]),
+    }).optional(),
+  }).parse(req.body);
+  const source = await prisma.screen.findUnique({ where: { id: req.params.id }, select: { projectId: true } });
+  await assertProjectAccess(source!.projectId, req.auth!.userId, ["owner", "editor"]);
+
+  const result = await prisma.$transaction(async (tx) => {
+    const changed = await tx.screen.updateMany({
+      where: { id: req.params.id, revision: { lt: input.revision } },
+      data: {
+        revision: input.revision,
+        name: input.name,
+        w: input.w,
+        h: input.h,
+        nodes: input.nodes as Prisma.InputJsonValue,
+        guides: input.guides,
+        settings: input.settings as Prisma.InputJsonValue,
+      },
+    });
+    if (changed.count && input.history) {
+      await tx.canvasHistory.create({
+        data: {
+          screenId: req.params.id,
+          action: input.history.action,
+          payload: input.history.payload as Prisma.InputJsonValue,
+          inverse: input.history.inverse as Prisma.InputJsonValue,
+          affectedIds: input.history.affectedIds,
+        },
+      });
+      const expired = await tx.canvasHistory.findMany({
+        where: { screenId: req.params.id },
+        orderBy: { createdAt: "desc" },
+        skip: 100,
+        select: { id: true },
+      });
+      if (expired.length) await tx.canvasHistory.deleteMany({ where: { id: { in: expired.map((entry) => entry.id) } } });
+    }
+    const screen = await tx.screen.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, name: true, w: true, h: true, revision: true, updatedAt: true },
+    });
+    return { ...screen, stale: changed.count === 0 };
+  });
+  return res.json(result);
 }));
 
 screenRouter.post("/:id/duplicate", asyncHandler(async (req, res) => {
