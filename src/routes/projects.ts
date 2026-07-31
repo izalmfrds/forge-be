@@ -99,7 +99,7 @@ router.get("/:id", asyncHandler(async (req, res) => {
       },
       kanbanCards: {
         orderBy: [{ status: "asc" }, { order: "asc" }],
-        select: { id: true, title: true, status: true, canvas: true, reqRef: true, order: true },
+        select: { id: true, title: true, status: true, canvas: true, reqRef: true, requirementKey: true, requirementVersion: true, obsolete: true, order: true },
       },
     },
   });

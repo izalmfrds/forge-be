@@ -26,6 +26,31 @@ projectKanbanRouter.post("/:id/kanban/sync", asyncHandler(async (req, res) => {
   return res.json(await syncRequirementToKanban(req.params.id));
 }));
 
+projectKanbanRouter.patch("/:id/kanban/reorder", asyncHandler(async (req, res) => {
+  await assertProjectAccess(req.params.id, req.auth!.userId, ["owner", "editor"]);
+  const input = z.object({
+    cards: z.array(z.object({
+      id: z.string().min(1),
+      status: z.enum(statuses),
+      order: z.number().int().min(0),
+    })).min(1).max(500),
+  }).parse(req.body);
+  const uniqueIds = new Set(input.cards.map((card) => card.id));
+  if (uniqueIds.size !== input.cards.length) throw new AppError(400, "DUPLICATE_CARD", "Each card may only appear once");
+  const owned = await prisma.kanbanCard.count({ where: { projectId: req.params.id, id: { in: [...uniqueIds] } } });
+  if (owned !== input.cards.length) throw new AppError(400, "INVALID_CARD_SET", "One or more cards do not belong to this project");
+
+  await prisma.$transaction(input.cards.map((card) => prisma.kanbanCard.update({
+    where: { id: card.id },
+    data: { status: card.status, order: card.order },
+  })));
+  const cards = await prisma.kanbanCard.findMany({
+    where: { projectId: req.params.id },
+    orderBy: [{ status: "asc" }, { order: "asc" }],
+  });
+  return res.json(groupKanbanCards(cards));
+}));
+
 const createCardSchema = z.object({
   projectId: z.string().min(1),
   title: z.string().trim().min(1).max(300),
@@ -51,6 +76,7 @@ cardRouter.patch("/:cardId", asyncHandler(async (req, res) => {
     status: z.enum(statuses).optional(),
     canvas: z.string().trim().max(50).nullable().optional(),
     reqRef: z.string().trim().max(80).nullable().optional(),
+    obsolete: z.boolean().optional(),
     order: z.number().int().min(0).optional(),
   }).refine((value) => Object.keys(value).length > 0).parse(req.body);
   const card = await prisma.kanbanCard.update({ where: { id: current.id }, data: input });

@@ -69,12 +69,12 @@ export function mergeRequirement(current: RequirementData, prompt: string): Requ
 }
 
 export function requirementToCards(requirement: RequirementData) {
-  const cards: { title: string; canvas: string | null; reqRef: string; status: string }[] = [];
-  requirement.stories.forEach((text, index) => cards.push({ title: text.slice(0, 160), canvas: "design", reqRef: `story ${index + 1}`, status: "todo" }));
-  requirement.fr.forEach((text) => cards.push({ title: text.slice(0, 160), canvas: inferCanvas(text), reqRef: "FR", status: "progress" }));
-  requirement.nfr.forEach((text) => cards.push({ title: text.slice(0, 160), canvas: inferCanvas(text), reqRef: "NFR", status: "done" }));
-  requirement.ac.forEach((text, index) => cards.push({ title: text.slice(0, 160), canvas: inferCanvas(text), reqRef: `AC ${index + 1}`, status: "done" }));
-  requirement.rules.forEach((text) => cards.push({ title: text.slice(0, 160), canvas: null, reqRef: "BR", status: "backlog" }));
+  const cards: { title: string; canvas: string | null; reqRef: string; requirementKey: string; status: string }[] = [];
+  requirement.stories.forEach((text, index) => cards.push({ title: text.slice(0, 160), canvas: "design", reqRef: `Story ${index + 1}`, requirementKey: `story:${index + 1}`, status: "todo" }));
+  requirement.fr.forEach((text, index) => cards.push({ title: text.slice(0, 160), canvas: inferCanvas(text), reqRef: `FR ${index + 1}`, requirementKey: `fr:${index + 1}`, status: "progress" }));
+  requirement.nfr.forEach((text, index) => cards.push({ title: text.slice(0, 160), canvas: inferCanvas(text), reqRef: `NFR ${index + 1}`, requirementKey: `nfr:${index + 1}`, status: "done" }));
+  requirement.ac.forEach((text, index) => cards.push({ title: text.slice(0, 160), canvas: inferCanvas(text), reqRef: `AC ${index + 1}`, requirementKey: `ac:${index + 1}`, status: "done" }));
+  requirement.rules.forEach((text, index) => cards.push({ title: text.slice(0, 160), canvas: null, reqRef: `BR ${index + 1}`, requirementKey: `rule:${index + 1}`, status: "backlog" }));
   return cards;
 }
 

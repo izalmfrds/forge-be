@@ -29,5 +29,6 @@ test("Kanban extraction is deterministic", () => {
   const second = requirementToCards(requirement);
   assert.deepEqual(first, second);
   assert.ok(first.some((card) => card.status === "todo"));
-  assert.ok(first.some((card) => card.reqRef === "FR"));
+  assert.ok(first.some((card) => card.reqRef === "FR 1"));
+  assert.equal(new Set(first.map((card) => card.requirementKey)).size, first.length);
 });

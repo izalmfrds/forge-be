@@ -102,17 +102,55 @@ export async function syncRequirementToKanban(projectId: string) {
       },
       update: { requirementData: data as unknown as Prisma.InputJsonValue, sentAt: new Date() },
     });
-    const existing = await tx.kanbanCard.findMany({ where: { projectId: project.id }, select: { title: true } });
-    const seen = new Set(existing.map((card) => card.title));
-    const additions = generated.filter((card) => !seen.has(card.title));
-    if (additions.length) {
-      await tx.kanbanCard.createMany({
-        data: additions.map((card, index) => ({ ...card, projectId: project.id, order: existing.length + index })),
+    const existing = await tx.kanbanCard.findMany({ where: { projectId: project.id } });
+    const byKey = new Map(existing.filter((card) => card.requirementKey).map((card) => [card.requirementKey!, card]));
+    const legacyByTitle = new Map(existing.filter((card) => !card.requirementKey).map((card) => [card.title, card]));
+    const activeKeys = new Set(generated.map((card) => card.requirementKey));
+    const nextOrder = new Map<string, number>();
+    for (const status of ["backlog", "todo", "progress", "done"]) {
+      nextOrder.set(status, existing.filter((card) => card.status === status).reduce((max, card) => Math.max(max, card.order + 1), 0));
+    }
+    let added = 0;
+    let updated = 0;
+    for (const card of generated) {
+      const current = byKey.get(card.requirementKey) || legacyByTitle.get(card.title);
+      if (!current) {
+        await tx.kanbanCard.create({
+          data: {
+            ...card,
+            projectId: project.id,
+            requirementVersion: requirement.version,
+            order: nextOrder.get(card.status) || 0,
+          },
+        });
+        nextOrder.set(card.status, (nextOrder.get(card.status) || 0) + 1);
+        added += 1;
+        continue;
+      }
+      const changed = current.title !== card.title
+        || current.canvas !== card.canvas
+        || current.reqRef !== card.reqRef
+        || current.obsolete;
+      await tx.kanbanCard.update({
+        where: { id: current.id },
+        data: {
+          title: card.title,
+          canvas: card.canvas,
+          reqRef: card.reqRef,
+          requirementKey: card.requirementKey,
+          requirementVersion: requirement.version,
+          obsolete: false,
+        },
       });
+      if (changed) updated += 1;
+    }
+    const removed = existing.filter((card) => card.requirementKey && !activeKeys.has(card.requirementKey) && !card.obsolete);
+    if (removed.length) {
+      await tx.kanbanCard.updateMany({ where: { id: { in: removed.map((card) => card.id) } }, data: { obsolete: true } });
     }
     await tx.requirement.update({ where: { id: requirement.id }, data: { sentAt: new Date() } });
     await tx.project.update({ where: { id: project.id }, data: { kanbanSyncedVer: requirement.version } });
-    return { added: additions.length, version: requirement.version };
+    return { added, updated, obsolete: removed.length, version: requirement.version };
   });
 }
 

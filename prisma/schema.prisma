@@ -102,6 +102,9 @@ model KanbanCard {
   title     String
   canvas    String?
   reqRef    String?
+  requirementKey String?
+  requirementVersion Int?
+  obsolete  Boolean  @default(false)
   status    String   @default("backlog") // backlog | todo | progress | done
   order     Int      @default(0)
   createdAt DateTime @default(now())
@@ -111,6 +114,7 @@ model KanbanCard {
 
   @@index([projectId, status])
   @@index([projectId])
+  @@unique([projectId, requirementKey])
 }
 
 model Screen {
