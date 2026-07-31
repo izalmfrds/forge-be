@@ -1,0 +1,162 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String
+  projects  ProjectMember[]
+  chatMessages ChatMessage[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Project {
+  id              String   @id @default(cuid())
+  name            String
+  type            String   @default("Project")
+  stage           Int      @default(0)
+  prog            Int      @default(0)
+  live            Boolean  @default(true)
+  req             Boolean  @default(false)
+  reqVersion      Int?     @default(0)
+  reqUpdatedAt    DateTime?
+  kanbanSyncedVer Int?     @default(0)
+  owners          String[] @default([])
+  desc            String   @default("")
+  updatedAt       DateTime @default(now())
+  createdBy       String
+  createdAt       DateTime @default(now())
+  deletedAt       DateTime?
+
+  members ProjectMember[]
+  requirements Requirement[]
+  screens   Screen[]
+  kanbanCards KanbanCard[]
+  chatMessages ChatMessage[]
+
+  @@index([createdBy])
+  @@index([deletedAt])
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  role      String   @default("member") // owner | editor | viewer
+  joinedAt  DateTime @default(now())
+
+  project Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@index([projectId])
+}
+
+model Requirement {
+  id        String   @id @default(cuid())
+  projectId String
+  version   Int
+  prd       String   @db.Text
+  stories   Json
+  fr        Json
+  nfr       Json
+  ac        Json
+  rules     Json
+  sentAt    DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project   Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  snapshots RequirementSnapshot[]
+
+  @@unique([projectId, version])
+  @@index([projectId])
+}
+
+model RequirementSnapshot {
+  id           String    @id @default(cuid())
+  requirementId String
+  version      Int
+  requirementData Json
+  sentAt       DateTime  @default(now())
+
+  requirement  Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+
+  @@index([requirementId])
+  @@unique([requirementId, version])
+}
+
+model KanbanCard {
+  id        String   @id @default(cuid())
+  projectId String
+  title     String
+  canvas    String?
+  reqRef    String?
+  status    String   @default("backlog") // backlog | todo | progress | done
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
+  @@index([projectId])
+}
+
+model Screen {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  w         Int
+  h         Int
+  nodes     Json
+  guides    Json     @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  history CanvasHistory[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model CanvasHistory {
+  id          String   @id @default(cuid())
+  screenId    String
+  action      String
+  payload     Json
+  inverse     Json
+  affectedIds Json     @default("[]")
+  createdAt   DateTime @default(now())
+
+  screen Screen @relation(fields: [screenId], references: [id], onDelete: Cascade)
+
+  @@index([screenId, createdAt])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  role      String
+  text      String   @db.Text
+  model     String?
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([userId])
+}
