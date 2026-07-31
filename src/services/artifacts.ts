@@ -9,7 +9,10 @@ export type ArtifactContent = {
   summary: string;
   sections: { title: string; items: string[] }[];
   tasks: { id: string; title: string; status: string; reqRef: string | null }[];
+  files: ArtifactFile[];
 };
+
+export type ArtifactFile = { path: string; language: string; content: string };
 
 export function generateArtifacts(project: { name: string; desc: string }, requirement: RequirementData, cards: ArtifactTask[]) {
   const taskMap = new Map(artifactKinds.map((kind) => [kind, cards.filter((card) => card.canvas === kind && !card.title.toLowerCase().includes("obsolete"))]));
@@ -21,7 +24,7 @@ export function generateArtifacts(project: { name: string; desc: string }, requi
 
 function generateArtifact(kind: ArtifactKind, project: { name: string; desc: string }, requirement: RequirementData, tasks: ArtifactTask[]): ArtifactContent {
   const commonTasks = tasks.map(({ id, title, status, reqRef }) => ({ id, title, status, reqRef }));
-  const byKind: Record<ArtifactKind, Omit<ArtifactContent, "tasks">> = {
+  const byKind: Record<ArtifactKind, Omit<ArtifactContent, "tasks" | "files">> = {
     frontend: {
       summary: `Frontend delivery blueprint for ${project.name}, derived from requirement and Kanban.`,
       sections: [
@@ -55,7 +58,65 @@ function generateArtifact(kind: ArtifactKind, project: { name: string; desc: str
       ],
     },
   };
-  return { ...byKind[kind], tasks: commonTasks };
+  return { ...byKind[kind], tasks: commonTasks, files: generateFiles(kind, project, requirement) };
+}
+
+function generateFiles(kind: ArtifactKind, project: { name: string; desc: string }, requirement: RequirementData): ArtifactFile[] {
+  const projectName = JSON.stringify(project.name);
+  const acceptance = JSON.stringify(requirement.ac.slice(0, 12), null, 2);
+  const files: Record<ArtifactKind, ArtifactFile[]> = {
+    frontend: [
+      {
+        path: "src/app/page.tsx",
+        language: "tsx",
+        content: `export default function HomePage() {\n  return (\n    <main className="min-h-screen bg-zinc-50 p-8">\n      <h1 className="text-2xl font-semibold">{${projectName}}</h1>\n      <p className="mt-2 text-zinc-600">${escapeTemplate(project.desc || requirement.prd.slice(0, 180))}</p>\n    </main>\n  );\n}\n`,
+      },
+      {
+        path: "src/components/RequirementStatus.tsx",
+        language: "tsx",
+        content: `export function RequirementStatus({ version }: { version: number }) {\n  return <span aria-label={\`Requirement version \${version}\`}>Requirement v{version} synced</span>;\n}\n`,
+      },
+      { path: "README.md", language: "markdown", content: markdownSummary(project.name, "Frontend", requirement) },
+    ],
+    backend: [
+      {
+        path: "src/routes/project.ts",
+        language: "typescript",
+        content: `import { Router } from "express";\n\nconst router = Router();\n\nrouter.get("/:id", async (req, res) => {\n  res.json({ id: req.params.id, project: ${projectName} });\n});\n\nexport default router;\n`,
+      },
+      {
+        path: "src/services/project-service.ts",
+        language: "typescript",
+        content: `export const businessRules = ${JSON.stringify(requirement.rules.slice(0, 12), null, 2)} as const;\n\nexport function assertProjectAccess(isMember: boolean) {\n  if (!isMember) throw new Error("Project access denied");\n}\n`,
+      },
+      { path: ".env.example", language: "dotenv", content: "DATABASE_URL=\nGEMINI_API_KEY=\nFRONTEND_URL=http://localhost:3000\n" },
+    ],
+    database: [
+      {
+        path: "prisma/schema.prisma",
+        language: "prisma",
+        content: `generator client {\n  provider = "prisma-client-js"\n}\n\ndatasource db {\n  provider = "postgresql"\n  url      = env("DATABASE_URL")\n}\n\nmodel Project {\n  id          String        @id @default(cuid())\n  name        String\n  description String        @default("")\n  requirements Requirement[]\n  createdAt   DateTime      @default(now())\n  updatedAt   DateTime      @updatedAt\n}\n\nmodel Requirement {\n  id        String   @id @default(cuid())\n  projectId String\n  version   Int\n  data      Json\n  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)\n  createdAt DateTime @default(now())\n\n  @@unique([projectId, version])\n}\n`,
+      },
+      { path: "prisma/migrations/README.md", language: "markdown", content: "# Migration policy\n\n- Prefer additive migrations.\n- Add indexes for project and version lookups.\n- Validate rollback and cascade behavior before deployment.\n" },
+    ],
+    testing: [
+      {
+        path: "tests/acceptance.spec.ts",
+        language: "typescript",
+        content: `import { test, expect } from "@playwright/test";\n\nconst acceptanceCriteria = ${acceptance} as const;\n\ntest("project meets its acceptance criteria", async ({ page }) => {\n  await page.goto("/");\n  await expect(page.locator("body")).toBeVisible();\n  expect(acceptanceCriteria.length).toBeGreaterThan(0);\n});\n`,
+      },
+      { path: "tests/README.md", language: "markdown", content: markdownSummary(project.name, "Testing", requirement) },
+    ],
+  };
+  return files[kind];
+}
+
+function markdownSummary(projectName: string, area: string, requirement: RequirementData) {
+  return `# ${projectName} — ${area}\n\nGenerated from the current Forge Requirement.\n\n## Acceptance criteria\n\n${requirement.ac.map((item) => `- ${item}`).join("\n")}\n`;
+}
+
+function escapeTemplate(value: string) {
+  return value.replace(/[`\\$]/g, (character) => `\\${character}`).replace(/\r?\n/g, " ");
 }
 
 function deriveComponents(requirement: RequirementData) {

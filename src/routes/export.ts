@@ -17,6 +17,7 @@ router.get("/:id/export", asyncHandler(async (req, res) => {
       requirements: { orderBy: { version: "asc" }, include: { snapshots: true } },
       kanbanCards: { orderBy: [{ status: "asc" }, { order: "asc" }] },
       screens: { orderBy: { createdAt: "asc" }, include: { history: { orderBy: { createdAt: "asc" } } } },
+      artifacts: { orderBy: { kind: "asc" } },
     },
   });
   if (!project) throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
@@ -24,7 +25,7 @@ router.get("/:id/export", asyncHandler(async (req, res) => {
   res.setHeader("Content-Disposition", `attachment; filename="${safeFileName(project.name)}-forge-export.json"`);
   return res.send(JSON.stringify({
     format: "forge-project",
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     project,
   }, null, format === "json" ? 2 : 0));

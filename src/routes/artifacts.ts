@@ -16,6 +16,22 @@ router.get("/:id/artifacts", asyncHandler(async (req, res) => {
   return res.json(artifacts);
 }));
 
+router.get("/:id/artifacts/bundle", asyncHandler(async (req, res) => {
+  await assertProjectAccess(req.params.id, req.auth!.userId);
+  const project = await prisma.project.findFirst({
+    where: { id: req.params.id, deletedAt: null },
+    select: { id: true, name: true, reqVersion: true, artifacts: { orderBy: { kind: "asc" } } },
+  });
+  if (!project) throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
+  return res.json({
+    format: "forge-artifact-bundle",
+    version: 1,
+    project: { id: project.id, name: project.name, requirementVersion: project.reqVersion || 0 },
+    exportedAt: new Date().toISOString(),
+    artifacts: project.artifacts,
+  });
+}));
+
 router.get("/:id/artifacts/:kind", asyncHandler(async (req, res) => {
   await assertProjectAccess(req.params.id, req.auth!.userId);
   const kind = kindSchema.parse(req.params.kind);

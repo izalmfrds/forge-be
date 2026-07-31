@@ -17,5 +17,7 @@ test("artifact orchestration creates every engineering canvas and links matching
 
   assert.deepEqual(artifacts.map((artifact) => artifact.kind), ["frontend", "backend", "database", "testing"]);
   assert.equal(artifacts.find((artifact) => artifact.kind === "frontend")?.content.tasks[0]?.id, "front-1");
+  assert.equal(artifacts.find((artifact) => artifact.kind === "frontend")?.content.files[0]?.path, "src/app/page.tsx");
+  assert.match(artifacts.find((artifact) => artifact.kind === "database")?.content.files[0]?.content || "", /model Project/);
   assert.match(artifacts.find((artifact) => artifact.kind === "testing")?.content.sections[0]?.items[0] || "", /valid credentials/i);
 });
