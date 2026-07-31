@@ -37,8 +37,19 @@ projectKanbanRouter.patch("/:id/kanban/reorder", asyncHandler(async (req, res) =
   }).parse(req.body);
   const uniqueIds = new Set(input.cards.map((card) => card.id));
   if (uniqueIds.size !== input.cards.length) throw new AppError(400, "DUPLICATE_CARD", "Each card may only appear once");
-  const owned = await prisma.kanbanCard.count({ where: { projectId: req.params.id, id: { in: [...uniqueIds] } } });
-  if (owned !== input.cards.length) throw new AppError(400, "INVALID_CARD_SET", "One or more cards do not belong to this project");
+  const [owned, total] = await Promise.all([
+    prisma.kanbanCard.count({ where: { projectId: req.params.id, id: { in: [...uniqueIds] } } }),
+    prisma.kanbanCard.count({ where: { projectId: req.params.id } }),
+  ]);
+  if (owned !== input.cards.length || total !== input.cards.length) {
+    throw new AppError(400, "INVALID_CARD_SET", "Reorder must contain every card in this project exactly once");
+  }
+  for (const status of statuses) {
+    const orders = input.cards.filter((card) => card.status === status).map((card) => card.order).sort((a, b) => a - b);
+    if (orders.some((order, index) => order !== index)) {
+      throw new AppError(400, "INVALID_CARD_ORDER", `Card order for ${status} must be contiguous and unique`);
+    }
+  }
 
   await prisma.$transaction(input.cards.map((card) => prisma.kanbanCard.update({
     where: { id: card.id },
