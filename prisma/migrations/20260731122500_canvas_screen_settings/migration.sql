@@ -1,0 +1,2 @@
+ALTER TABLE "Screen"
+ADD COLUMN "settings" JSONB NOT NULL DEFAULT '{}';

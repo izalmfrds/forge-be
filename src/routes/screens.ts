@@ -8,13 +8,21 @@ import { AppError } from "../lib/errors.js";
 
 const projectScreensRouter = Router();
 const screenRouter = Router();
+const defaultSettings = {
+  canvasBg: "#f5f5f5",
+  canvasBgOpacity: 1,
+  showCanvasBg: true,
+  showAlignmentGrid: false,
+  showRulers: true,
+  showMinimap: false,
+};
 
 projectScreensRouter.get("/:id/screens", asyncHandler(async (req, res) => {
   await assertProjectAccess(req.params.id, req.auth!.userId);
   const screens = await prisma.screen.findMany({
     where: { projectId: req.params.id },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, name: true, w: true, h: true, createdAt: true, updatedAt: true },
+    select: { id: true, name: true, w: true, h: true, settings: true, createdAt: true, updatedAt: true },
   });
   return res.json(screens);
 }));
@@ -25,9 +33,10 @@ projectScreensRouter.post("/:id/screens", asyncHandler(async (req, res) => {
     name: z.string().trim().min(1).max(120),
     w: z.number().int().min(1).max(20000).default(1440),
     h: z.number().int().min(1).max(20000).default(1024),
+    settings: z.record(z.unknown()).optional(),
   }).parse(req.body);
   const screen = await prisma.screen.create({
-    data: { ...input, projectId: req.params.id, nodes: [], guides: [] },
+    data: { ...input, settings: (input.settings || defaultSettings) as Prisma.InputJsonValue, projectId: req.params.id, nodes: [], guides: [] },
   });
   return res.status(201).json(screen);
 }));
@@ -44,10 +53,19 @@ screenRouter.patch("/:id", asyncHandler(async (req, res) => {
     name: z.string().trim().min(1).max(120).optional(),
     w: z.number().int().min(1).max(20000).optional(),
     h: z.number().int().min(1).max(20000).optional(),
+    settings: z.record(z.unknown()).optional(),
   }).refine((value) => Object.keys(value).length > 0).parse(req.body);
   const screen = await prisma.screen.findUnique({ where: { id: req.params.id }, select: { projectId: true } });
   await assertProjectAccess(screen!.projectId, req.auth!.userId, ["owner", "editor"]);
-  return res.json(await prisma.screen.update({ where: { id: req.params.id }, data: input }));
+  return res.json(await prisma.screen.update({
+    where: { id: req.params.id },
+    data: {
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.w !== undefined ? { w: input.w } : {}),
+      ...(input.h !== undefined ? { h: input.h } : {}),
+      ...(input.settings ? { settings: input.settings as Prisma.InputJsonValue } : {}),
+    },
+  }));
 }));
 
 screenRouter.delete("/:id", asyncHandler(async (req, res) => {
@@ -60,9 +78,28 @@ screenRouter.delete("/:id", asyncHandler(async (req, res) => {
 screenRouter.get("/:id/nodes", asyncHandler(async (req, res) => {
   const screen = await prisma.screen.findUnique({
     where: { id: req.params.id },
-    select: { id: true, nodes: true, guides: true, updatedAt: true },
+    select: { id: true, nodes: true, guides: true, settings: true, updatedAt: true },
   });
   return res.json(screen);
+}));
+
+screenRouter.post("/:id/duplicate", asyncHandler(async (req, res) => {
+  const source = await prisma.screen.findUnique({ where: { id: req.params.id } });
+  if (!source) throw new AppError(404, "SCREEN_NOT_FOUND", "Screen not found");
+  await assertProjectAccess(source.projectId, req.auth!.userId, ["owner", "editor"]);
+  const input = z.object({ name: z.string().trim().min(1).max(120) }).parse(req.body);
+  const duplicate = await prisma.screen.create({
+    data: {
+      projectId: source.projectId,
+      name: input.name,
+      w: source.w,
+      h: source.h,
+      nodes: source.nodes as Prisma.InputJsonValue,
+      guides: source.guides as Prisma.InputJsonValue,
+      settings: source.settings as Prisma.InputJsonValue,
+    },
+  });
+  return res.status(201).json(duplicate);
 }));
 
 screenRouter.put("/:id/nodes", asyncHandler(async (req, res) => {
