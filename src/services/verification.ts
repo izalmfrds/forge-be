@@ -34,5 +34,5 @@ function containsSecret(content: string) {
   return /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/.test(content)
     || /\bAIza[0-9A-Za-z_-]{30,}\b/.test(content)
     || /\bAQ\.[0-9A-Za-z_-]{20,}\b/.test(content)
-    || /(?:GEMINI_API_KEY|DATABASE_URL|API_KEY)\s*=\s*[^\s#][^\r\n]*/.test(content);
+    || /(?:GEMINI_API_KEY|DATABASE_URL|API_KEY)[ \t]*=[ \t]*[^\s#][^\r\n]*/.test(content);
 }

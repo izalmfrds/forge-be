@@ -37,3 +37,16 @@ test("artifact verification rejects leaked secrets and unsafe paths", () => {
   assert.equal(report.checks.find((item) => item.key === "paths")?.passed, false);
   assert.equal(report.checks.find((item) => item.key === "secrets")?.passed, false);
 });
+
+test("artifact verification permits empty environment placeholders", () => {
+  const report = verifyArtifact("backend", {
+    summary: "Backend",
+    sections: [{ title: "One", items: [] }, { title: "Two", items: [] }, { title: "Three", items: [] }],
+    tasks: [],
+    files: [
+      { path: "src/routes/project.ts", language: "typescript", content: "export default {};" },
+      { path: ".env.example", language: "dotenv", content: "DATABASE_URL=\nGEMINI_API_KEY=\nFRONTEND_URL=http://localhost:3000\n" },
+    ],
+  });
+  assert.equal(report.status, "passed");
+});
